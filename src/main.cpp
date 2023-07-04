@@ -19,13 +19,29 @@ int main(int argc, char **argv) {
             clang_getLocation(translationUnit, file, line, colomn);
         CXCursor cursor = clang_getCursor(translationUnit, source);
         if (clang_getCursorKind(cursor) == CXCursor_DeclRefExpr) {
-            auto type = clang_getCursorType(cursor);
-            auto stype = clang_getTypeSpelling(type);
-            auto name = clang_getCursorSpelling(cursor);
-            std::cout << clang_getCString(name) << " : "
-                      << clang_getCString(stype) << "\n";
-            clang_disposeString(stype);
-            clang_disposeString(name);
+            auto visit = [](void *, CXCursor cursor,
+                            CXSourceRange range) -> enum CXVisitorResult {
+                auto start = clang_getRangeStart(range);
+                auto end = clang_getRangeEnd(range);
+                unsigned int start_line, end_line, start_colomn, end_colomn;
+                clang_getExpansionLocation(start, NULL, &start_line,
+                                           &start_colomn, NULL);
+                clang_getExpansionLocation(end, NULL, &end_line,
+                                           &end_colomn, NULL);
+                auto name = clang_getCursorSpelling(cursor);
+                std::cout << clang_getCString(name) << ": "
+                          << start_line << ":" << start_colomn << "-"
+                          << end_line   << ":" << end_colomn << "\n";
+                return CXVisit_Continue;
+            };
+            clang_findReferencesInFile(cursor, file, {NULL, visit});
+            // auto type = clang_getCursorType(cursor);
+            // auto stype = clang_getTypeSpelling(type);
+            // auto name = clang_getCursorSpelling(cursor);
+            // std::cout << clang_getCString(name) << " : "
+            //           << clang_getCString(stype) << "\n";
+            // clang_disposeString(stype);
+            // clang_disposeString(name);
         }
     }
     clang_disposeTranslationUnit(translationUnit);
