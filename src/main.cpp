@@ -6,11 +6,22 @@ extern "C" {
 #include <iostream>
 #include <string>
 
+std::string to_string(CXString s){
+    std::string retn{clang_getCString(s)};
+    clang_disposeString(s);
+    return retn;
+}
+
 int main(int argc, char **argv) {
 
     CXIndex index = clang_createIndex(0, 0);
-
     const char *filename = "main.c";
+    // if(argc >= 1){
+    //     filename = argv[1];
+    // }
+    // CXCursor_FirstDecl
+    // CXTranslationUnit aUnit = clang_parseTranslationUnit(
+    //     index, "a.c", NULL, 0, NULL, 0, CXTranslationUnit_None);
     CXTranslationUnit translationUnit = clang_parseTranslationUnit(
         index, filename, NULL, 0, NULL, 0, CXTranslationUnit_None);
     CXFile file = clang_getFile(translationUnit, filename);
@@ -51,17 +62,30 @@ int main(int argc, char **argv) {
         CXSourceLocation location = clang_getCursorLocation(cursor);
         if (clang_Location_isFromMainFile(location) == 0)
             return CXChildVisit_Continue;
-        if (clang_getCursorKind(cursor) == CXCursor_DeclRefExpr ||
-            clang_getCursorKind(cursor) == CXCursor_VarDecl) {
-            auto name_ = clang_getCursorSpelling(cursor);
-            auto name = clang_getCString(name_);
-            if (std::string{name} == "a") {
-                unsigned int line, colomn;
-                clang_getExpansionLocation(location, NULL, &line, &colomn,
-                                           NULL);
-                std::cout << "a : " << line << ":" << colomn << "\n";
+        auto cursor_kind = clang_getCursorKind(cursor);
+        if(cursor_kind == CXCursor_DeclRefExpr){
+            cursor = clang_getCursorDefinition(cursor);
+            cursor_kind = clang_getCursorKind(cursor);
+        }
+        if (clang_isDeclaration(cursor_kind)) {
+            // auto name = to_string(clang_getCursorSpelling(cursor));
+            // if (name == "a") {
+            //     unsigned int line, colomn;
+            //     clang_getExpansionLocation(location, NULL, &line, &colomn,
+            //                                NULL);
+            //     std::cout << "a : " << line << ":" << colomn << "\n";
+            // }
+            auto USR = to_string(clang_getCursorUSR(cursor));
+            unsigned int line, colomn;
+            CXFile inner_file;
+            clang_getExpansionLocation(location, &inner_file, &line, &colomn,
+                                            NULL);
+            std::cout << USR << ":\n"
+                      << to_string(clang_getFileName(inner_file)) << ":"
+                      << line << ":" << colomn << "\n";
+            if(cursor_kind == CXCursor_FunctionDecl){
+                return CXChildVisit_Recurse;
             }
-            clang_disposeString(name_);
             return CXChildVisit_Continue;
         }
         return CXChildVisit_Recurse;
